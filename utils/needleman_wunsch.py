@@ -1,12 +1,13 @@
 """
 Needleman-Wunsch implementation.
-Originally taken from
+Originally taken (and slightly modified) from
 https://github.com/shaneweisz/OCR-Character-Confusion/blob/master/confusion_matrix/needleman_wunsch.py
 """
 
 
 # Use these values to calculate scores
-from typing import Tuple
+import dataclasses
+from typing import Tuple, List
 
 gap_penalty = -1
 match_award = 1
@@ -42,7 +43,37 @@ def _match_score(alpha, beta):
 # The function that actually fills out a matrix of scores
 
 
-def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[str, str]:
+# TODO: We need to differentiate " " with gap char.
+#   ideally GAP should be not-a-char.
+
+@dataclasses.dataclass
+class SubChain:
+    items: List[str]
+
+    def __str__(self):
+        return "".join(self.items)
+
+
+@dataclasses.dataclass
+class AlignedChars:
+    subchains: List[SubChain] = dataclasses.field(default_factory=list)
+
+    def __str__(self):
+        return "".join([str(subchain) for subchain in self.subchains])
+
+
+def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[AlignedChars, AlignedChars]:
+
+    # Note that we're putting char in reversive order
+    def new_subchain(aligned_raw: AlignedChars, c: str):
+        aligned_raw.subchains = [SubChain([c])] + aligned_raw.subchains
+
+    def grow_subchain(aligned_raw: AlignedChars, c: str):
+        if not aligned_raw.subchains:
+            aligned_raw.subchains.append(SubChain([c]))
+        else:
+            aligned_raw.subchains[0].items = [c] + aligned_raw.subchains[0].items
+
     # Store length of two sequences
     n = len(seq1)
     m = len(seq2)
@@ -73,8 +104,13 @@ def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[str, str]:
     # Traceback and compute the alignment
 
     # Create variables to store alignment
+    # FIXME: cover 'nw' with tests and remove align1 and align2,
+    #    currently I keep it only because I'm not 100% tested by subchains
+    #    enhancement.
     align1 = ""
     align2 = ""
+    align1_raw = AlignedChars()
+    align2_raw = AlignedChars()
 
     # Start from the bottom right cell in matrix
     i = m
@@ -92,25 +128,37 @@ def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[str, str]:
         if score_current == score_diagonal + _match_score(seq1[j - 1], seq2[i - 1]):
             align1 += seq1[j-1]
             align2 += seq2[i-1]
+            new_subchain(align1_raw, seq1[j - 1])
+            new_subchain(align2_raw, seq2[i - 1])
             i -= 1
             j -= 1
         elif score_current == score_up + gap_penalty:
             align1 += seq1[j-1]
             align2 += gap_char
+            grow_subchain(align1_raw, seq1[j - 1])
+            grow_subchain(align2_raw, gap_char)
+
             j -= 1
         elif score_current == score_left + gap_penalty:
             align1 += gap_char
             align2 += seq2[i-1]
+            grow_subchain(align1_raw, gap_char)
+            grow_subchain(align2_raw, seq2[i - 1])
+
             i -= 1
 
     # Finish tracing up to the top left cell
     while j > 0:
         align1 += seq1[j-1]
         align2 += gap_char
+        grow_subchain(align1_raw, seq1[j - 1])
+        grow_subchain(align2_raw, gap_char)
         j -= 1
     while i > 0:
         align1 += gap_char
         align2 += seq2[i-1]
+        grow_subchain(align1_raw, gap_char)
+        grow_subchain(align2_raw, seq2[i - 1])
         i -= 1
 
     # Since we traversed the score matrix from the bottom right, our two sequences will be reversed.
@@ -118,4 +166,8 @@ def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[str, str]:
     align1 = align1[::-1]
     align2 = align2[::-1]
 
-    return align1, align2
+    assert str(align1_raw) == align1
+    assert str(align2_raw) == align2
+    assert len(align1_raw.subchains) == len(align2_raw.subchains)
+
+    return align1_raw, align2_raw

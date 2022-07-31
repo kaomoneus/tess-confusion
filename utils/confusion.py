@@ -27,23 +27,14 @@ def create_confusion(
         # Get confusion vector
 
         confusion_vec = dict()
-        left = []
-        right = []
 
-        for rec_char, gt_char in zip(recognized_aligned, gt_aligned):
-            if rec_char != " ":
-                left.extend(rec_char)
+        for rec_char, gt_char in zip(
+            recognized_aligned.subchains, gt_aligned.subchains
+        ):
+            left = str(rec_char)
+            right = str(gt_char)
 
-            if gt_char != " ":
-                right.extend(gt_char)
-
-            if left and right:
-                assert len(left) == 1 or len(right) == 1, \
-                    "We can map only single chars to multiple chars or" \
-                    " multiple chars to single char"
-
-                confusion_vec["".join(left)] = "".join(right)
-                left, right = [], []
+            confusion_vec[left] = right
 
         # Aggregate it
 

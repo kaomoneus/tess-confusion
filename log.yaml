@@ -1,0 +1,21 @@
+version: 1
+formatters:
+  file_formatter:
+    format: '%(asctime)s %(name)s %(levelname)s: %(message)s'
+  console_formattter:
+    format: '%(asctime)s: %(message)s'
+
+handlers:
+  console:
+    class: utils.log_utils.TqdmLoggingHandler
+    level: INFO
+    formatter: console_formattter
+  file:
+    class: logging.FileHandler
+    filename: log.txt
+    level: INFO
+    formatter: file_formatter
+
+root:
+  level: DEBUG
+  handlers: [console, file]

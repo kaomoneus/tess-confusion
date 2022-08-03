@@ -7,11 +7,14 @@ https://github.com/shaneweisz/OCR-Character-Confusion/blob/master/confusion_matr
 
 # Use these values to calculate scores
 import dataclasses
-from typing import Tuple, List
+from typing import Tuple, List, Optional, Any
 
 gap_penalty = -1
 match_award = 1
 mismatch_penalty = -1
+
+GAP_RENDER_CHAR = " "
+GAP_ITEM = "\0"
 
 # A function for making a matrix of zeroes
 
@@ -43,36 +46,20 @@ def _match_score(alpha, beta):
 # The function that actually fills out a matrix of scores
 
 
-# TODO: We need to differentiate " " with gap char.
-#   ideally GAP should be not-a-char.
-
-@dataclasses.dataclass
-class SubChain:
-    items: List[str]
-
-    def __str__(self):
-        return "".join(self.items)
-
-
 @dataclasses.dataclass
 class AlignedChars:
-    subchains: List[SubChain] = dataclasses.field(default_factory=list)
+    char_items: List[Any] = dataclasses.field(default_factory=list)
 
     def __str__(self):
-        return "".join([str(subchain) for subchain in self.subchains])
+        return "".join([c if c is not GAP_ITEM else GAP_RENDER_CHAR for c in self.char_items])
 
 
-def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[AlignedChars, AlignedChars]:
-
-    # Note that we're putting char in reversive order
-    def new_subchain(aligned_raw: AlignedChars, c: str):
-        aligned_raw.subchains = [SubChain([c])] + aligned_raw.subchains
-
-    def grow_subchain(aligned_raw: AlignedChars, c: str):
-        if not aligned_raw.subchains:
-            aligned_raw.subchains.append(SubChain([c]))
+def nw(seq1, seq2) -> Tuple[AlignedChars, AlignedChars]:
+    def grow_subchain(aligned_raw: AlignedChars, c):
+        if not aligned_raw.char_items:
+            aligned_raw.char_items.append(c)
         else:
-            aligned_raw.subchains[0].items = [c] + aligned_raw.subchains[0].items
+            aligned_raw.char_items = [c] + aligned_raw.char_items
 
     # Store length of two sequences
     n = len(seq1)
@@ -128,21 +115,21 @@ def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[AlignedChars, AlignedChars]:
         if score_current == score_diagonal + _match_score(seq1[j - 1], seq2[i - 1]):
             align1 += seq1[j-1]
             align2 += seq2[i-1]
-            new_subchain(align1_raw, seq1[j - 1])
-            new_subchain(align2_raw, seq2[i - 1])
+            grow_subchain(align1_raw, seq1[j - 1])
+            grow_subchain(align2_raw, seq2[i - 1])
             i -= 1
             j -= 1
         elif score_current == score_up + gap_penalty:
             align1 += seq1[j-1]
-            align2 += gap_char
+            align2 += GAP_RENDER_CHAR
             grow_subchain(align1_raw, seq1[j - 1])
-            grow_subchain(align2_raw, gap_char)
+            grow_subchain(align2_raw, GAP_ITEM)
 
             j -= 1
         elif score_current == score_left + gap_penalty:
-            align1 += gap_char
+            align1 += GAP_RENDER_CHAR
             align2 += seq2[i-1]
-            grow_subchain(align1_raw, gap_char)
+            grow_subchain(align1_raw, GAP_ITEM)
             grow_subchain(align2_raw, seq2[i - 1])
 
             i -= 1
@@ -150,14 +137,14 @@ def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[AlignedChars, AlignedChars]:
     # Finish tracing up to the top left cell
     while j > 0:
         align1 += seq1[j-1]
-        align2 += gap_char
+        align2 += GAP_RENDER_CHAR
         grow_subchain(align1_raw, seq1[j - 1])
-        grow_subchain(align2_raw, gap_char)
+        grow_subchain(align2_raw, GAP_ITEM)
         j -= 1
     while i > 0:
-        align1 += gap_char
+        align1 += GAP_RENDER_CHAR
         align2 += seq2[i-1]
-        grow_subchain(align1_raw, gap_char)
+        grow_subchain(align1_raw, GAP_ITEM)
         grow_subchain(align2_raw, seq2[i - 1])
         i -= 1
 
@@ -168,6 +155,6 @@ def nw(seq1, seq2, gap_char: str = ' ') -> Tuple[AlignedChars, AlignedChars]:
 
     assert str(align1_raw) == align1
     assert str(align2_raw) == align2
-    assert len(align1_raw.subchains) == len(align2_raw.subchains)
+    assert len(align1_raw.char_items) == len(align2_raw.char_items)
 
     return align1_raw, align2_raw

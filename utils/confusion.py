@@ -12,6 +12,8 @@ LOG = logging.getLogger(__name__)
 CharFrequencies = Dict[str, float]
 ConfusionMatrix = Dict[str, CharFrequencies]
 
+confusion_vec_lock = multiprocessing.Lock()
+
 
 def create_confusion(
     recognition_and_gt: Iterable[Tuple[str, str]]
@@ -29,17 +31,15 @@ def create_confusion(
         confusion_vec = dict()
 
         for rec_char, gt_char in zip(
-            recognized_aligned.subchains, gt_aligned.subchains
+            recognized_aligned.char_items, gt_aligned.char_items
         ):
-            left = str(rec_char)
-            right = str(gt_char)
-
-            confusion_vec[left] = right
+            confusion_vec[rec_char] = gt_char
 
         # Aggregate it
 
-        for rec, correct in confusion_vec.items():
-            confusion_matrix[rec][correct] += 1
+        with confusion_vec_lock:
+            for rec, correct in confusion_vec.items():
+                confusion_matrix[rec][correct] += 1
 
     # Normalize confusion matrix
     for rec, vec in confusion_matrix.items():

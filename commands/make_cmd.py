@@ -43,7 +43,7 @@ def _recognize(ocr_lstmf_path: Path):
     ocr, lstmf_path = ocr_lstmf_path
     img_path = _get_image_for(lstmf_path)
     with tess_lock:
-        return ocr(img_path) if img_path else None
+        return (ocr(img_path) if img_path else None), lstmf_path
 
 
 def _gt(lstmf_path):
@@ -64,7 +64,7 @@ def _check_rec_gt(recognized, gt, lstmf_path):
     return True
 
 
-def _get_rec_and_gt(items_list_path, ocr: OCRType, limit: int, jobs=None):
+def _get_rec_and_gt(items_list_path, ocr: OCRType, limit: int, jobs: int):
     LOG.info("Reading list file...")
     with open(items_list_path, "r") as images_list_file:
         lines = [*map(Path, images_list_file)]
@@ -85,7 +85,7 @@ def _get_rec_and_gt(items_list_path, ocr: OCRType, limit: int, jobs=None):
         desc = f"Processing images, jobs={jobs}"
 
     for recognized, lstmf_path in tqdm(
-        zip(mapf(_recognize, ocr_lines), lines),
+        mapf(_recognize, ocr_lines),
         total=len(lines), desc=desc
     ):
         gt_str = _gt(lstmf_path)
@@ -115,11 +115,21 @@ def _get_rec_and_gt(items_list_path, ocr: OCRType, limit: int, jobs=None):
     default=Path("confusion_matrix.json"),
     type=Path
 )
-def make(ocr: str, items_list_path: Path, output: Path, limit: int):
+@click.option(
+    "--jobs",
+    default=0,
+    type=int
+)
+def make(
+    ocr: str,
+    items_list_path: Path, output: Path,
+    limit: int,
+    jobs: int,
+):
     ocr = OCRS[ocr]
 
     confusion_matrix = create_confusion(
-        _get_rec_and_gt(items_list_path, ocr, limit)
+        _get_rec_and_gt(items_list_path, ocr, limit, jobs)
     )
 
     LOG.info("Writing confusion matrix...")

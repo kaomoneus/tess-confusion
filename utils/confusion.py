@@ -1,4 +1,5 @@
 import dataclasses
+import itertools
 import json
 import logging
 import multiprocessing
@@ -6,7 +7,7 @@ from collections import defaultdict
 from copy import copy
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Iterable, Tuple, Union
+from typing import Dict, Iterable, Tuple, Union, List
 
 import numpy as np
 import textblob.en
@@ -39,6 +40,7 @@ class ConfusionMatrix:
     confusion_matrix: _ConfusionMatrixDict = dataclasses.field(
         default_factory=defaultdict(lambda: defaultdict(lambda: 0.))
     )
+    per_word_suggestions_limit: int = None
 
     def train(self, recognition_ground_truth_gen: Iterable[Tuple[str, str]]):
         confusion_matrix = self.confusion_matrix
@@ -108,8 +110,23 @@ class ConfusionMatrix:
             (w, sug)
             for (w, _), sug in zip(conf_suggestions, prods)
         ], key=lambda wsug: -wsug[1])
+        conf_suggestions = conf_suggestions[:self.per_word_suggestions_limit]
 
         return conf_suggestions
+
+    def suggest_sentence(self, s: str, max_wrong_spaces: int = 2):
+        def _suggest(ss: List[str]):
+            for words_probs in itertools.product(*map(self.suggest, ss)):
+                words, probs = zip(*words_probs)
+                sentence = " ".join(words)
+                prob = itertools.accumulate(probs, lambda res, cur: res*cur)
+                yield sentence, [*prob][-1]
+
+        variants = itertools.chain(*map(
+            _suggest,
+            _enumerate_wrong_spaces(s, max_wrong_spaces)
+        ))
+        return variants
 
 
 @lru_cache
@@ -140,3 +157,38 @@ def textblob_all_suggestions(w: str):
     else:
         candidates = [(word, p) for p, word in candidates]
     return candidates
+
+
+def _enumerate_wrong_spaces(s: str, max_wrong_spaces: int):
+    orig_words = s.split()
+
+    first_word = orig_words[0]
+    remainder = orig_words[1:]
+    num_spaces = len(remainder)
+    space_indices = [*range(num_spaces)]
+
+    def _apply_wrong_mask(bad_mask: List[bool]):
+        res = [[first_word]]
+
+        for word, is_space_wrong in zip(remainder, bad_mask):
+            if is_space_wrong:
+                res[-1].append(word)
+            else:
+                res.append([word])
+
+        res = [
+            " ".join(words_group) for words_group in res
+        ]
+
+        return res
+
+    wrong_combs = itertools.chain([set()], *(
+        map(
+            set,
+            itertools.combinations(space_indices, num_wrong_spaces)
+        ) for num_wrong_spaces in range(1, min(max_wrong_spaces + 1, num_spaces))
+    ))
+
+    for wrong_spaces_indices in wrong_combs:
+        wrong_spaces = [i in wrong_spaces_indices for i in space_indices]
+        yield _apply_wrong_mask(wrong_spaces)

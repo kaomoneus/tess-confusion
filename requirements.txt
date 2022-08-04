@@ -2,3 +2,5 @@ pyyaml
 tqdm
 click
 pytesseract
+textblob
+numpy

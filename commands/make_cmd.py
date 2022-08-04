@@ -9,7 +9,7 @@ import click
 from tqdm import tqdm
 
 from ocrs.tesseract import Tesseract
-from utils.confusion import create_confusion
+from utils.confusion import ConfusionMatrix
 
 LOG = logging.getLogger(__name__)
 
@@ -128,12 +128,7 @@ def make(
 ):
     ocr = OCRS[ocr]
 
-    confusion_matrix = create_confusion(
-        _get_rec_and_gt(items_list_path, ocr, limit, jobs)
-    )
-
-    LOG.info("Writing confusion matrix...")
-    with open(output, "w") as confusion_matrix_file:
-        json.dump(confusion_matrix, confusion_matrix_file, indent=4)
-
-    LOG.info(f"Done. Matrix is written into '{output}'")
+    confusion_matrix = ConfusionMatrix()
+    confusion_matrix.train(_get_rec_and_gt(items_list_path, ocr, limit, jobs))
+    confusion_matrix.save(output)
+    LOG.info(f"Matrix saved as '{output}'")

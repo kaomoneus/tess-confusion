@@ -94,8 +94,6 @@ def nw(seq1, seq2) -> Tuple[AlignedChars, AlignedChars]:
     # FIXME: cover 'nw' with tests and remove align1 and align2,
     #    currently I keep it only because I'm not 100% tested by subchains
     #    enhancement.
-    align1 = ""
-    align2 = ""
     align1_raw = AlignedChars()
     align2_raw = AlignedChars()
 
@@ -113,22 +111,16 @@ def nw(seq1, seq2) -> Tuple[AlignedChars, AlignedChars]:
         # Check to figure out which cell the current score was calculated from,
         # then update i and j to correspond to that cell.
         if score_current == score_diagonal + _match_score(seq1[j - 1], seq2[i - 1]):
-            align1 += seq1[j-1]
-            align2 += seq2[i-1]
             grow_subchain(align1_raw, seq1[j - 1])
             grow_subchain(align2_raw, seq2[i - 1])
             i -= 1
             j -= 1
         elif score_current == score_up + gap_penalty:
-            align1 += seq1[j-1]
-            align2 += GAP_RENDER_CHAR
             grow_subchain(align1_raw, seq1[j - 1])
             grow_subchain(align2_raw, GAP_ITEM)
 
             j -= 1
         elif score_current == score_left + gap_penalty:
-            align1 += GAP_RENDER_CHAR
-            align2 += seq2[i-1]
             grow_subchain(align1_raw, GAP_ITEM)
             grow_subchain(align2_raw, seq2[i - 1])
 
@@ -136,25 +128,12 @@ def nw(seq1, seq2) -> Tuple[AlignedChars, AlignedChars]:
 
     # Finish tracing up to the top left cell
     while j > 0:
-        align1 += seq1[j-1]
-        align2 += GAP_RENDER_CHAR
         grow_subchain(align1_raw, seq1[j - 1])
         grow_subchain(align2_raw, GAP_ITEM)
         j -= 1
     while i > 0:
-        align1 += GAP_RENDER_CHAR
-        align2 += seq2[i-1]
         grow_subchain(align1_raw, GAP_ITEM)
         grow_subchain(align2_raw, seq2[i - 1])
         i -= 1
-
-    # Since we traversed the score matrix from the bottom right, our two sequences will be reversed.
-    # These two lines reverse the order of the characters in each sequence.
-    align1 = align1[::-1]
-    align2 = align2[::-1]
-
-    assert str(align1_raw) == align1
-    assert str(align2_raw) == align2
-    assert len(align1_raw.char_items) == len(align2_raw.char_items)
 
     return align1_raw, align2_raw
